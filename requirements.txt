@@ -4,3 +4,4 @@ wordcloud
 matplotlib
 langdetect
 googletrans
+fpdf
