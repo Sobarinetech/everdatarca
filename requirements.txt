@@ -1,2 +1,6 @@
 streamlit
 google-generativeai
+wordcloud
+matplotlib
+langdetect
+googletrans
