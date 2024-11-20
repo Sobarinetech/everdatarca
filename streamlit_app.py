@@ -8,6 +8,7 @@ from io import BytesIO
 from fpdf import FPDF
 import concurrent.futures
 import json
+import time
 from textblob import TextBlob
 
 # Configure API Key securely from Streamlit's secrets
@@ -30,45 +31,65 @@ enable_export = st.sidebar.checkbox("Export Options (Text, JSON, PDF)")
 st.subheader("Input Email Content")
 email_content = st.text_area("Paste your email content here:", height=200)
 
+# Limit the length of the input to optimize performance (e.g., 1000 characters)
+MAX_EMAIL_LENGTH = 1000
+
 # Cache the AI responses to improve performance (to avoid repeated API calls)
 @st.cache_data
 def get_summary_from_api(email_content):
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    summary_prompt = f"Summarize the email in a concise, actionable format:\n\n{email_content}"
-    return model.generate_content(summary_prompt).text.strip()
+    try:
+        start_time = time.time()
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        summary_prompt = f"Summarize the email in a concise, actionable format:\n\n{email_content[:MAX_EMAIL_LENGTH]}"
+        response = model.generate_content(summary_prompt)
+        st.write(f"Summary generation took {time.time() - start_time:.2f} seconds.")
+        return response.text.strip()
+    except Exception as e:
+        st.error(f"Error generating summary: {e}")
+        return ""
 
 @st.cache_data
 def get_response_from_api(email_content):
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    response_prompt = f"Draft a professional response to this email:\n\n{email_content}"
-    return model.generate_content(response_prompt).text.strip()
+    try:
+        start_time = time.time()
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response_prompt = f"Draft a professional response to this email:\n\n{email_content[:MAX_EMAIL_LENGTH]}"
+        response = model.generate_content(response_prompt)
+        st.write(f"Response generation took {time.time() - start_time:.2f} seconds.")
+        return response.text.strip()
+    except Exception as e:
+        st.error(f"Error generating response: {e}")
+        return ""
 
 @st.cache_data
 def get_highlights_from_api(email_content):
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    highlight_prompt = f"Highlight key points and actions in this email:\n\n{email_content}"
-    return model.generate_content(highlight_prompt).text.strip()
+    try:
+        start_time = time.time()
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        highlight_prompt = f"Highlight key points and actions in this email:\n\n{email_content[:MAX_EMAIL_LENGTH]}"
+        response = model.generate_content(highlight_prompt)
+        st.write(f"Highlight generation took {time.time() - start_time:.2f} seconds.")
+        return response.text.strip()
+    except Exception as e:
+        st.error(f"Error generating highlights: {e}")
+        return ""
 
 def generate_export_files(export_text, export_json):
-    # Generate PDF content and store in buffer
-    pdf_content = export_pdf(export_text)
-    pdf_buffer = BytesIO(pdf_content)
-
-    # Provide download buttons
-    return pdf_buffer, export_text, export_json
+    try:
+        pdf_content = export_pdf(export_text)
+        pdf_buffer = BytesIO(pdf_content)
+        return pdf_buffer, export_text, export_json
+    except Exception as e:
+        st.error(f"Error generating export files: {e}")
+        return None, export_text, export_json
 
 def export_pdf(export_text):
-    # Create PDF object
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-
-    # Ensure no problematic characters in the text by replacing non-latin characters
     clean_text = export_text.replace('’', "'").replace('“', '"').replace('”', '"')  # Add more replacements as needed
-    
-    # Use utf-8 to handle special characters
     pdf.multi_cell(0, 10, clean_text)
-    return pdf.output(dest='S').encode('latin1')  # Keep latin1 encoding for compatibility with FPDF
+    return pdf.output(dest='S').encode('latin1')
 
 if email_content and st.button("Generate Insights"):
     try:
