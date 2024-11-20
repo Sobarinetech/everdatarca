@@ -6,7 +6,7 @@ from langdetect import detect
 from googletrans import Translator
 from io import BytesIO
 from fpdf import FPDF
-import threading
+import concurrent.futures
 import json
 from textblob import TextBlob
 
@@ -29,6 +29,25 @@ enable_export = st.sidebar.checkbox("Export Options (Text, JSON, PDF)")
 # Input Email Section
 st.subheader("Input Email Content")
 email_content = st.text_area("Paste your email content here:", height=200)
+
+# Cache the AI responses to improve performance (to avoid repeated API calls)
+@st.cache_data
+def get_summary_from_api(email_content):
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    summary_prompt = f"Summarize the email in a concise, actionable format:\n\n{email_content}"
+    return model.generate_content(summary_prompt).text.strip()
+
+@st.cache_data
+def get_response_from_api(email_content):
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response_prompt = f"Draft a professional response to this email:\n\n{email_content}"
+    return model.generate_content(response_prompt).text.strip()
+
+@st.cache_data
+def get_highlights_from_api(email_content):
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    highlight_prompt = f"Highlight key points and actions in this email:\n\n{email_content}"
+    return model.generate_content(highlight_prompt).text.strip()
 
 def generate_export_files(export_text, export_json):
     # Generate PDF content and store in buffer
@@ -62,24 +81,16 @@ if email_content and st.button("Generate Insights"):
                 translator = Translator()
                 email_content = translator.translate(email_content, src=detected_lang, dest="en").text
 
-        # Step 2: Generate AI Insights
+        # Step 2: Use concurrent futures to parallelize tasks
         with st.spinner("Generating insights..."):
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            summary_prompt = f"Summarize the email in a concise, actionable format:\n\n{email_content}"
-            summary_response = model.generate_content(summary_prompt)
-            summary = summary_response.text.strip()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future_summary = executor.submit(get_summary_from_api, email_content)
+                future_response = executor.submit(get_response_from_api, email_content) if enable_response else None
+                future_highlights = executor.submit(get_highlights_from_api, email_content) if enable_highlights else None
 
-            response = ""
-            if enable_response:
-                response_prompt = f"Draft a professional response to this email:\n\n{email_content}"
-                response_response = model.generate_content(response_prompt)
-                response = response_response.text.strip()
-
-            highlights = ""
-            if enable_highlights:
-                highlight_prompt = f"Highlight key points and actions in this email:\n\n{email_content}"
-                highlight_response = model.generate_content(highlight_prompt)
-                highlights = highlight_response.text.strip()
+                summary = future_summary.result()
+                response = future_response.result() if future_response else ""
+                highlights = future_highlights.result() if future_highlights else ""
 
         # Step 3: Display Results
         st.subheader("AI Summary")
@@ -104,7 +115,7 @@ if email_content and st.button("Generate Insights"):
         # Step 5: Word Cloud (Optional)
         if enable_wordcloud:
             st.subheader("Word Cloud")
-            wordcloud = WordCloud(width=800, height=400, background_color="white").generate(email_content)
+            wordcloud = WordCloud(width=800, height=400, background_color="white", max_words=100).generate(email_content)
             fig, ax = plt.subplots()
             ax.imshow(wordcloud, interpolation="bilinear")
             ax.axis("off")
