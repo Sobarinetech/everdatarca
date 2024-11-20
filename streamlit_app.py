@@ -39,11 +39,17 @@ def generate_export_files(export_text, export_json):
     return pdf_buffer, export_text, export_json
 
 def export_pdf(export_text):
+    # Create PDF object
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    pdf.multi_cell(0, 10, export_text)
-    return pdf.output(dest='S').encode('latin1')  # Return PDF content as bytes
+
+    # Ensure no problematic characters in the text by replacing non-latin characters
+    clean_text = export_text.replace('’', "'").replace('“', '"').replace('”', '"')  # Add more replacements as needed
+    
+    # Use utf-8 to handle special characters
+    pdf.multi_cell(0, 10, clean_text)
+    return pdf.output(dest='S').encode('latin1')  # Keep latin1 encoding for compatibility with FPDF
 
 if email_content and st.button("Generate Insights"):
     try:
